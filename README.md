@@ -22,6 +22,16 @@ For every core Solr reports, the plugin emits two metrics:
 
 If Solr is unreachable or returns bad data, the plugin reports `status: 0` with a failure message, which Site24x7 surfaces as a down state you can alert on. A sudden drop in a core's document count is often the earliest visible sign of an indexing problem, which makes `doc_count` a surprisingly useful alert threshold.
 
+## Prerequisites
+
+The [Site24x7 Linux server monitoring agent](https://www.site24x7.com/help/admin/adding-a-monitor/server-monitor.html) must be installed on the Solr server (Admin > Server Monitor > Add in the Site24x7 console gives you a one-line install command with your device key).
+
+The plugin needs Python 3 with the `requests` library available to the agent:
+
+```bash
+sudo pip3 install requests
+```
+
 ## Installation
 
 Create a plugin folder inside the Site24x7 agent's plugin directory. The folder name and the script name must match for the agent to detect the plugin:
