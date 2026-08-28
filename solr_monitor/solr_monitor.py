@@ -1,56 +1,62 @@
 #!/usr/bin/env python3
+"""Site24x7 custom plugin that reports Apache Solr core health and document counts."""
+
+import json
+import os
 
 import requests
-import json
 
-# Configuration
-SOLR_URL = "http://localhost:8983"
+# Override with the SOLR_URL environment variable if Solr is not local.
+SOLR_URL = os.environ.get("SOLR_URL", "http://localhost:8983")
 SOLR_CORES_STATUS_API = "/solr/admin/cores?action=STATUS"
-PLUGIN_VERSION = "3"
+REQUEST_TIMEOUT_SECONDS = 10
+
+# Site24x7 detects changes by version number; bump in whole integers.
+PLUGIN_VERSION = "4"
+
 
 def get_solr_cores_status():
-    response = requests.get(SOLR_URL + SOLR_CORES_STATUS_API)
-    if response.status_code == 200:
+    try:
+        response = requests.get(
+            SOLR_URL + SOLR_CORES_STATUS_API, timeout=REQUEST_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
         return response.json()
-    return None
+    except (requests.RequestException, ValueError):
+        return None
+
 
 def main():
     cores_data = get_solr_cores_status()
 
-    output = {
-        "plugin_version": PLUGIN_VERSION
-    }
-    units = {}
-
-    # Check if we got a valid response
-    if cores_data and 'status' in cores_data:
-        output["status"] = 1  # 1 implies success, 0 implies failure
-        output["msg"] = "Success"
-        for core_name, core_info in cores_data['status'].items():
-            # Get number of documents for each core
-            doc_count_key = f"{core_name}_doc_count"
-            doc_status_key = f"{core_name}_status"
-
-            doc_count = core_info['index']['numDocs']
-
-            output[doc_count_key] = doc_count
-            output[doc_status_key] = 1  # Assuming the core is up if we got this far
-
-            # Add units
-            units[doc_count_key] = "documents"
-            units[doc_status_key] = "status"
-
-        # Add units dictionary to output
-        output["units"] = units
-
-        print(json.dumps(output, indent=4))
-    else:
-        # Print an error message if unable to fetch data
+    if not cores_data or "status" not in cores_data:
         print(json.dumps({
             "status": 0,
             "msg": "Failed to fetch Solr core status",
-            "plugin_version": PLUGIN_VERSION
+            "plugin_version": PLUGIN_VERSION,
         }, indent=4))
+        return
 
-if __name__ == '__main__':
+    output = {
+        "plugin_version": PLUGIN_VERSION,
+        "status": 1,  # 1 implies success, 0 implies failure
+        "msg": "Success",
+    }
+    units = {}
+
+    for core_name, core_info in cores_data["status"].items():
+        doc_count_key = f"{core_name}_doc_count"
+        doc_status_key = f"{core_name}_status"
+
+        output[doc_count_key] = core_info["index"]["numDocs"]
+        output[doc_status_key] = 1  # The core responded, so report it as up.
+
+        units[doc_count_key] = "documents"
+        units[doc_status_key] = "status"
+
+    output["units"] = units
+    print(json.dumps(output, indent=4))
+
+
+if __name__ == "__main__":
     main()

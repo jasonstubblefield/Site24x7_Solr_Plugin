@@ -1,22 +1,44 @@
-# Site24x7 Solr Monitor
+# Site24x7 Solr Plugin
 
-Site24x7 is a popular infrastructure monitoring solution that has the ability to use custom plugins.
+A custom [Site24x7](https://www.site24x7.com/) plugin that monitors [Apache Solr](https://solr.apache.org/). Site24x7 ships with many integrations, but Solr is not one of them; this plugin fills the gap by polling Solr's cores STATUS API and reporting per-core health and document counts to your Site24x7 dashboard, where you can chart them and alert on them.
 
-There are many plugins that come included with Site24x7 but Solr is not one of them.
+## How it works
 
-Here is a Solr plugin for Site24x7 that will provide basic monitoring capabilities.
+```mermaid
+flowchart LR
+    A[Site24x7 agent] -->|runs on schedule| B[solr_monitor.py]
+    B -->|GET /solr/admin/cores?action=STATUS| C[Solr]
+    C -->|core status JSON| B
+    B -->|metrics JSON| A
+    A --> D[Site24x7 dashboard<br/>charts and alerts]
+```
 
-## How to use
+For every core Solr reports, the plugin emits two metrics:
 
-Make a folder in the site 24x7 plugin folder, usually at `/opt/site24x7` on your server: 
+| Metric | Meaning |
+|--------|---------|
+| `<core>_doc_count` | Number of documents in the core's index |
+| `<core>_status` | 1 if the core responded, part of overall plugin status |
 
-`/opt/site24x7/monagent/plugins/solr_monitor`
+If Solr is unreachable or returns bad data, the plugin reports `status: 0` with a failure message, which Site24x7 surfaces as a down state you can alert on. A sudden drop in a core's document count is often the earliest visible sign of an indexing problem, which makes `doc_count` a surprisingly useful alert threshold.
 
-Copy the `solr_monitor.py` script to the folder created above, please note, the folder name and the script name must be the same for the plugin to work:
+## Installation
 
-`/opt/site24x7/monagent/plugins/solr_monitor/solr_monitor.py`
+Create a plugin folder inside the Site24x7 agent's plugin directory. The folder name and the script name must match for the agent to detect the plugin:
 
-Site 24x7 should detect the plugin automatically.
+```bash
+mkdir -p /opt/site24x7/monagent/plugins/solr_monitor
+cp solr_monitor/solr_monitor.py /opt/site24x7/monagent/plugins/solr_monitor/
+```
 
-Please change the version number in whole integers only if you modify this script and site24x7 will pick up the changes automatically when it detects the new version number.
+The agent detects the plugin automatically within a few polling cycles.
 
+## Configuration
+
+By default the plugin queries Solr at `http://localhost:8983`. To monitor a Solr instance elsewhere, set the `SOLR_URL` environment variable for the agent, or edit the default at the top of the script.
+
+If you modify the script, bump `PLUGIN_VERSION` by a whole integer; Site24x7 picks up the new version automatically.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
